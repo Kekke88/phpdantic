@@ -4,22 +4,53 @@ declare(strict_types=1);
 
 namespace Kekke88\Phpdantic;
 
+use Kekke88\Phpdantic\Exceptions\TypeCastException;
 use Kekke88\Phpdantic\Exceptions\ValidationException;
+use Kekke88\Phpdantic\Library\TypeCast;
+use Kekke88\Phpdantic\Library\Validator;
+use ReflectionNamedType;
+use ReflectionUnionType;
 use Roave\BetterReflection\Reflection\ReflectionProperty;
-
-//use ReflectionProperty;
+use TypeError;
 
 class BaseModel
 {
-    final public function __construct(mixed $data)
+    final public function __construct(array $data, bool $strict = false)
     {
-        $this->setProperties($data);
+        $this->setProperties($data, $strict);
 
         $this->checkForMissingProperties();
 
-        print_r($this);
+        $this->validateProperties();
     }
 
+    private function setProperties(array $data, bool $strict): void
+    {
+        foreach ($data as $key => $value) {
+            if (property_exists($this, $key)) {
+                if ($strict) {
+                    try {
+                        $this->$key = $value;
+                    } catch (TypeError) {
+                        throw new ValidationException("Invalid type of property $key, does not match values type");
+                    }
+                }
+
+                $reflectionProperty = new \ReflectionProperty($this, $key);
+                $reflectionTypes = $reflectionProperty->getType();
+                $expectedTypes = $this->getExpectedTypes($reflectionTypes);
+
+                $typeCaster = new TypeCast();
+                try {
+                    $typeCaster->tryTypeCastValue($value, $expectedTypes);
+                } catch (TypeCastException) {
+                    throw new ValidationException("Invalid value for key $key");
+                }
+
+                $this->$key = $value;
+            }
+        }
+    }
 
     private function checkForMissingProperties(): void
     {
@@ -32,52 +63,36 @@ class BaseModel
                     continue;
                 }
 
-                // Missing value, throw exception
                 throw new ValidationException("Missing value for property ($key)");
             }
         }
     }
 
-    private function tryTypeCastValue(mixed &$value, string $key, string $type): void
+    private function validateProperties(): void
     {
-        if (is_scalar($value)) {
-            settype($value, $type);
+        $validatorName = 'phpdanticValidators';
+
+        if (!property_exists($this, $validatorName) || !is_array($this->$validatorName)) {
             return;
         }
 
-        $valueType = gettype($value);
-
-        if ($valueType !== $type) {
-            print("Value is $value and type is $type" . PHP_EOL);
-            // TODO: hämta om det är basemodel och försöka göra en isåf
-
-            if ($valueType === 'array') {
-                // Check if type wanted is a BaseModel
-                print("Type is $type" . PHP_EOL);
-                print("Parent: " . get_parent_class($type) . PHP_EOL);
-
-                if (get_parent_class($type) === BaseModel::class) {
-                    print("Parent is BaseModel, trying to create new BaseModel");
-                    $value = new $type($value);
-                } else {
-                    // TODO: Maybe throw other exception, catch it in setproperties and throw this one, to remove $key param?
-                    throw new ValidationException("Property $key is invalid, expected BaseModel");
-                }
-            }
-        }
+        $validator = new Validator();
+        $validator->validate($this);
     }
 
-    private function setProperties(mixed $data): void
+    private function getExpectedTypes(ReflectionNamedType|ReflectionUnionType $reflectionTypes): array
     {
-        foreach ($data as $key => $value) {
-            if (property_exists($this, $key)) {
-                $reflectionProperty = new \ReflectionProperty($this, $key);
-                $expectedType = $reflectionProperty->getType()->getName();
+        $expectedTypes = [];
 
-                $this->tryTypeCastValue($value, $key, $expectedType);
-
-                $this->$key = $value;
+        if ($reflectionTypes instanceof ReflectionUnionType) {
+            $unionTypes = $reflectionTypes->getTypes();
+            foreach ($unionTypes as $unionType) {
+                $expectedTypes[] = $unionType->getName();
             }
+        } else {
+            $expectedTypes = [$reflectionTypes->getName()];
         }
+
+        return $expectedTypes;
     }
 }

@@ -18,6 +18,16 @@
         "squizlabs/php_codesniffer": "3.*"
     },
     "require": {
+        "php": "^7.4||^8.0",
         "roave/better-reflection": "^6.16"
-    }
+    },
+    "authors": [
+        {
+            "name": "Henric Johansson",
+            "email": "hej@henricjohansson.se",
+            "homepage": "https://henricjohansson.se",
+            "role": "Developer"
+        }
+    ],
+    "license": "Apache-2.0"
 }
