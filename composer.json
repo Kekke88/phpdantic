@@ -1,5 +1,5 @@
 {
-    "name": "kekke88/phpdantic-package",
+    "name": "kekke88/phpdantic",
     "description": "Data validation using PHP type hints.",
     "autoload": {
         "psr-4": {
