@@ -7,5 +7,8 @@ lint:
 format:
 	./vendor/bin/phpcbf ./src
 
+setup:
+	./scripts/composer_setup.sh
+
 .PHONY: test lint format
 .SILENT: test lint format
